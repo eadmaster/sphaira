@@ -951,7 +951,7 @@ void FsView::ZipFiles(fs::FsPath zip_out) {
 
     App::Push<ui::ProgressBox>(0, "Compressing "_i18n, "", [this, zip_out, targets](auto pbox) -> Result {
         const auto t = std::time(NULL);
-        const auto tm = std::localtime(&t);
+        auto tm = std::localtime(&t);
         const auto is_hdd_fs = m_fs->Root().starts_with("ums");
 
         // pre-calculate the time rather than calculate it in the loop.
@@ -986,6 +986,22 @@ void FsView::ZipFiles(fs::FsPath zip_out) {
 
             pbox->NewTransfer(file_name_in_zip);
 
+            // read file timestamp
+            struct stat st;
+            if (stat(file_path.s, &st) != 0) {
+                time_t file_mtime = st.st_mtime;
+                tm = std::localtime(&file_mtime);
+                if (tm == NULL) {
+                    tm = std::localtime(&t);
+                }
+            }
+            zip_info.tmz_date.tm_sec = tm->tm_sec;
+            zip_info.tmz_date.tm_min = tm->tm_min;
+            zip_info.tmz_date.tm_hour = tm->tm_hour;
+            zip_info.tmz_date.tm_mday = tm->tm_mday;
+            zip_info.tmz_date.tm_mon = tm->tm_mon;
+            zip_info.tmz_date.tm_year = tm->tm_year;
+            
             if (ZIP_OK != zipOpenNewFileInZip(zfile, file_name_in_zip, &zip_info, NULL, 0, NULL, 0, NULL, Z_DEFLATED, Z_DEFAULT_COMPRESSION)) {
                 log_write("failed to add zip for %s\n", file_path.s);
                 R_THROW(Result_ZipOpenNewFileInZip);
